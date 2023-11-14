@@ -1,0 +1,55 @@
+version: '3'
+
+services:
+  mongo:
+    image: mongo:latest
+    restart: always
+    command: --quiet
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+      - ./data-db:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: templates
+    ports:
+      - 27017:27017
+
+  web:
+    image: template_app
+    restart: always
+    env_file:
+      - .env
+    command: >
+      bash -c "(python manage.py test || true)
+      && python manage.py loaddata template.json
+      && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/template
+    ports:
+      - 8000:8000
+    depends_on:
+      - mongo
+
+  migration:
+    build: .
+    image: app
+    command: python manage.py migrate
+    volumes:
+      - .:/template
+    links:
+      - mongo
+    depends_on:
+      - make_migrations
+
+  make_migrations:
+    build: .
+    image: app
+    command: python manage.py makemigrations
+    volumes:
+      - .:/template
+    links:
+      - mongo
+    depends_on:
+      - mongo
+
+volumes:
+  mongodb:
